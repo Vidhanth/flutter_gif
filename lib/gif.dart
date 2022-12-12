@@ -7,24 +7,15 @@
 
 library gif;
 
-import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
+import 'package:http/http.dart' as http;
 
-final HttpClient _sharedHttpClient = HttpClient()..autoUncompress = false;
-
-HttpClient get _httpClient {
-  HttpClient client = _sharedHttpClient;
-  assert(() {
-    if (debugNetworkImageHttpClientProvider != null) {
-      client = debugNetworkImageHttpClientProvider!();
-    }
-    return true;
-  }());
-  return client;
+http.Client get _httpClient {
+  return http.Client();
 }
 
 /// How to auto start the gif.
@@ -328,11 +319,13 @@ class _GifState extends State<Gif> with SingleTickerProviderStateMixin {
 
     if (provider is NetworkImage) {
       final Uri resolved = Uri.base.resolve(provider.url);
-      final HttpClientRequest request = await _httpClient.getUrl(resolved);
-      provider.headers?.forEach(
-          (String name, String value) => request.headers.add(name, value));
-      final HttpClientResponse response = await request.close();
-      bytes = await consolidateHttpClientResponseBytes(response);
+      final response = await _httpClient.get(resolved);
+      bytes = response.bodyBytes;
+      // final Request request = await _httpClient.(resolved);
+      // provider.headers?.forEach(
+      //     (String name, String value) => request.headers.add(name, value));
+      // final HttpClientResponse response = await request.close();
+      // bytes = await consolidateHttpClientResponseBytes(response);
     } else if (provider is AssetImage) {
       AssetBundleImageKey key =
           await provider.obtainKey(const ImageConfiguration());
@@ -345,7 +338,9 @@ class _GifState extends State<Gif> with SingleTickerProviderStateMixin {
 
     // Removing ! gives compile time error on Flutter 2.5.3
     // ignore: unnecessary_non_null_assertion
-    Codec codec = await PaintingBinding.instance!.instantiateImageCodec(bytes);
+    ImmutableBuffer buffer = await ImmutableBuffer.fromUint8List(bytes);
+    Codec codec =
+        await PaintingBinding.instance.instantiateImageCodecFromBuffer(buffer);
     List<ImageInfo> infos = [];
     Duration duration = Duration();
 
